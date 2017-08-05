@@ -176,13 +176,8 @@ type Config struct {
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string
 
-	// AuthType is the type of authentication to use. Supported values are
-	// local, oidc, and saml. AuthType is used to override the default
-	// authentication type.
-	AuthType string
-	// ConnectorName is the specific name of the connector to use. If no
-	// ConnectorName is provided the first connector found will be used.
-	ConnectorName string
+	// Auth is the type of authentication to use.
+	Auth string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1030,19 +1025,20 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 	}
 
 	// check if we are overriding the auth type and connector name from cli
-	if tc.AuthType != "" {
+	if tc.Auth == teleport.Local {
 		pr.Auth.Type = tc.AuthType
-		if tc.AuthType == teleport.OIDC {
-			pr.Auth.OIDC = &OIDCSettings{
-				Name:    tc.ConnectorName,
-				Display: tc.ConnectorName,
-			}
+	}
+	// TODO(russjones): We need to know here if this is a OIDC request or a SAML request.
+	if tc.Auth == teleport.OIDC {
+		pr.Auth.OIDC = &OIDCSettings{
+			Name:    tc.Auth,
+			Display: tc.Auth,
 		}
-		if tc.AuthType == teleport.SAML {
-			pr.Auth.SAML = &SAMLSettings{
-				Name:    tc.ConnectorName,
-				Display: tc.ConnectorName,
-			}
+	}
+	if tc.Auth == teleport.SAML {
+		pr.Auth.SAML = &SAMLSettings{
+			Name:    tc.Auth,
+			Display: tc.Auth,
 		}
 	}
 
