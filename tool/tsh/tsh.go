@@ -33,6 +33,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -118,6 +119,13 @@ type CLIConf struct {
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a fershly retreived certificate
 	IdentityFormat client.IdentityFileFormat
+
+	// AuthType is the type of authentication to use. Supported values are
+	// local, oidc, and saml.
+	AuthType string
+	// ConnectorName is the specific name of the connector to use. If no
+	// ConnectorName is provided the first connector found will be used.
+	ConnectorName string
 }
 
 func main() {
@@ -154,8 +162,10 @@ func Run(args []string, underTest bool) {
 	app.Flag("ttl", "Minutes to live for a SSH session").Int32Var(&cf.MinsToLive)
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").StringVar(&cf.Compatibility)
-
+	app.Flag("auth", "Specify the type of authentication to use. Supported values are local, oidc, and saml.").StringVar(&cf.AuthType)
+	app.Flag("connector-name", "Is an optional parameter used to specify the specific connector to use").StringVar(&cf.ConnectorName)
 	app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments").Default("false").BoolVar(&cf.InsecureSkipVerify)
+
 	app.Flag("namespace", "Namespace of the cluster").Default(defaults.Namespace).Hidden().StringVar(&cf.Namespace)
 	app.Flag("gops", "Start gops endpoint on a given address").Hidden().BoolVar(&cf.Gops)
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
@@ -652,6 +662,15 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 		return nil, trace.Wrap(err)
 	}
 	c.Compatibility = compatibility
+
+	// override default auth parameters
+	c.AuthType = cf.AuthType
+	c.ConnectorName = cf.ConnectorName
+	if c.AuthType != "" && c.AuthType != teleport.Local {
+		if c.ConnectorName == "" {
+			return nil, trace.BadParameter("when passing in a auth type, connector-name must be specified")
+		}
+	}
 
 	return client.NewClient(c)
 }

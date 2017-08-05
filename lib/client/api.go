@@ -175,6 +175,14 @@ type Config struct {
 
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string
+
+	// AuthType is the type of authentication to use. Supported values are
+	// local, oidc, and saml. AuthType is used to override the default
+	// authentication type.
+	AuthType string
+	// ConnectorName is the specific name of the connector to use. If no
+	// ConnectorName is provided the first connector found will be used.
+	ConnectorName string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -1021,6 +1029,23 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// check if we are overriding the auth type and connector name from cli
+	if tc.AuthType != "" {
+		pr.Auth.Type = tc.AuthType
+		if tc.AuthType == teleport.OIDC {
+			pr.Auth.OIDC = &OIDCSettings{
+				Name:    tc.ConnectorName,
+				Display: tc.ConnectorName,
+			}
+		}
+		if tc.AuthType == teleport.SAML {
+			pr.Auth.SAML = &SAMLSettings{
+				Name:    tc.ConnectorName,
+				Display: tc.ConnectorName,
+			}
+		}
+	}
+
 	// generate a new keypair. the public key will be signed via proxy if our
 	// password+OTP are legit
 	key, err := NewKey()
@@ -1037,6 +1062,10 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 			return nil, trace.Wrap(err)
 		}
 	case teleport.OIDC:
+		if pr.Auth.OIDC == nil {
+			return nil, trace.BadParameter("no OIDC connector found")
+		}
+
 		response, err = tc.ssoLogin(pr.Auth.OIDC.Name, key.Pub, teleport.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1045,6 +1074,10 @@ func (tc *TeleportClient) Login(activateKey bool) (*Key, error) {
 		// in this case identity is returned by the proxy
 		tc.Username = response.Username
 	case teleport.SAML:
+		if pr.Auth.SAML == nil {
+			return nil, trace.BadParameter("no SAML connector found")
+		}
+
 		response, err = tc.ssoLogin(pr.Auth.SAML.Name, key.Pub, teleport.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
