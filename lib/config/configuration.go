@@ -311,6 +311,17 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		if !fileExists(fc.Proxy.CertFile) {
 			return trace.Errorf("https cert does not exist: %s", fc.Proxy.CertFile)
 		}
+
+		// verify we have a valid certificate chain before starting teleport
+		certificateBytes, err := utils.ReadPath(fc.Proxy.CertFile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = utils.VerifyCertificateChain(certificateBytes)
+		if err != nil {
+			return trace.BadParameter("unable to verify certificate chain: %v", err)
+		}
+
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
 	}
 
